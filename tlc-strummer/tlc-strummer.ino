@@ -15,7 +15,7 @@
 #define BRIGHT_LED 1         // LED brightness, 0 is low, 1 is high
 #define TOUCH_THR 1500       // threshold level for capacitive touch (lower is more sensitive)
 #define serialPortRX 25      // not used, but defining so there aren't conflicts
-#define serialPortTX 24      // MIDI DIN TX - teensy LC Serial1 tx pin options are 1, 4, 5, 24 for serial1, 
+#define serialPortTX 5      // MIDI DIN TX - teensy LC Serial1 tx pin options are 1, 4, 5, 24 for serial1, 
 
 #define CHECK_INTERVAL 4     // interval in ms for sensor check
 
@@ -25,7 +25,7 @@ unsigned long statusPreviousMillis = 0L;
 unsigned int noteOnCmd = {NOTE_ON_CMD,0x00,VELOCITY};       // MIDI note on and note off message structures
 unsigned int noteOffCmd = {NOTE_Off_CMD,0x00,VELOCITY};
 
-byte colPin[12]          = {15,20,21,5,6,7,8,9,10,11,12,14};// teensy digital input pins for keyboard columns (just leave unused ones empty)
+byte colPin[12]          = {15,20,21,13,6,7,8,9,10,11,12,14};// teensy digital input pins for keyboard columns (just leave unused ones empty)
 byte colNote[12]         = {1,8,3,10,5,0,7,2,9,4,11,6};     // column to note number                                            
                                                             // column setup for omnichord style (circle of fifths)
                                                             // chord    Db, Ab, Eb, Bb,  F,  C,  G,  D,  A,  E,  B, F#
