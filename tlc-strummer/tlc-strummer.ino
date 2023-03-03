@@ -1,7 +1,7 @@
 /////////////////////////////////////////////////////////////////////////
 //                                                                     //
 //   Teensy LC chord strummer by Johan Berglund, April 2017            //
-//       Modified March 2023                                           //
+//       Modified March 2023 by Rob McCarty                            //
 //                                                                     //
 /////////////////////////////////////////////////////////////////////////
 
@@ -66,6 +66,7 @@ int chordNote[8][8] = {        // chord notes for each pad/string
   { 0, 4, 7,10,12,16,19,22 },  // 7th 
   { 0, 4, 7,11,12,16,19,23 },  // maj7
   { 0, 3, 7,10,12,15,19,22 },  // m7  
+  // { 0, 5, 7,12,17,19,24,29 },  // sus, uncomment this line and comment out aug line to enable 
   { 0, 4, 8,12,16,20,24,28 }   // aug  
 };
 
