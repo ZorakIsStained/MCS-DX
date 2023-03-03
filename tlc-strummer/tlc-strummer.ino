@@ -1,8 +1,10 @@
 /////////////////////////////////////////////////////////////////////////
 //                                                                     //
 //   Teensy LC chord strummer by Johan Berglund, April 2017            //
+//       Modified March 2023                                           //
 //                                                                     //
 /////////////////////////////////////////////////////////////////////////
+
 
 
 #define MIDI_CH 1            // MIDI channel
@@ -22,10 +24,10 @@
 unsigned long currentMillis = 0L;
 unsigned long statusPreviousMillis = 0L;
 
-unsigned int noteOnCmd = {NOTE_ON_CMD,0x00,VELOCITY};       // MIDI note on and note off message structures
-unsigned int noteOffCmd = {NOTE_Off_CMD,0x00,VELOCITY};
+unsigned int noteOnCmd[3] = {NOTE_ON_CMD,0x00,VELOCITY};       // MIDI note on and note off message structures
+unsigned int noteOffCmd[3] = {NOTE_OFF_CMD,0x00,VELOCITY};
 
-byte colPin[12]          = {15,20,21,13,6,7,8,9,10,11,12,14};// teensy digital input pins for keyboard columns (just leave unused ones empty)
+byte colPin[12]          = {11,10,9,8,7,6,13,14,15,20,21,2};// teensy digital input pins for keyboard columns (just leave unused ones empty)
 byte colNote[12]         = {1,8,3,10,5,0,7,2,9,4,11,6};     // column to note number                                            
                                                             // column setup for omnichord style (circle of fifths)
                                                             // chord    Db, Ab, Eb, Bb,  F,  C,  G,  D,  A,  E,  B, F#
@@ -33,7 +35,7 @@ byte colNote[12]         = {1,8,3,10,5,0,7,2,9,4,11,6};     // column to note nu
                                                             // for chromatic order, C to B, straight order 0 to 11
                                                             // original tlc strummer design only use pins 5 through 12 (chords Bb to B)
 
-byte rowPin[3]           = {4,3,2};                         // teensy output pins for keyboard rows
+byte rowPin[3]           = {3,4,12};                         // teensy output pins for keyboard rows
 
                                                             // chord type   maj, min, 7th
                                                             // row            0,   1,   2
@@ -69,9 +71,9 @@ int chordNote[8][8] = {        // chord notes for each pad/string
 
 // SETUP
 void setup() {
-  Serial1.setRX(serialPortRX)
-  Serial1.setTX(serialPortTX)
-  Serial1.begin(31250)
+  Serial1.setRX(serialPortRX);
+  Serial1.setTX(serialPortTX);
+  Serial1.begin(31250);
   for (int i = 0; i < 12; i++) {
      pinMode(colPin[i],INPUT_PULLUP);
   }
@@ -96,10 +98,10 @@ void loop() {
           digitalWrite(LED_PIN, HIGH);                                // sending midi, so light up led
           if (sensedNote){
               usbMIDI.sendNoteOn(noteNumber, VELOCITY, MIDI_CH);      // send Note On, USB MIDI
-              midiNoteOn(noteNumber)                                  // send Note On, DIN
+              midiNoteOn(noteNumber);                                 // send Note On, DIN
           } else {
               usbMIDI.sendNoteOff(noteNumber, VELOCITY, MIDI_CH);     // send note Off, USB MIDI
-              midiNoteOff(noteNumber)                                 // send note Off, DIN
+              midiNoteOff(noteNumber);                                // send note Off, DIN
           }
           if (!BRIGHT_LED) digitalWrite(LED_PIN, LOW);                // led off for low brightness
         }  
@@ -131,7 +133,7 @@ void readKeyboard() {
          if (activeNote[i]) {
           digitalWrite(LED_PIN, HIGH);                        // sending midi, so light up led
           usbMIDI.sendNoteOff(noteNumber, VELOCITY, MIDI_CH); // send Note Off, USB MIDI
-          midiNoteOff(noteNumber)                              // send Note Off, DIN
+          midiNoteOff(noteNumber);                             // send Note Off, DIN
           if (!BRIGHT_LED) digitalWrite(LED_PIN, LOW);        // led off for low brightness
          }
        }
@@ -142,7 +144,7 @@ void readKeyboard() {
         if (activeNote[i]) {
           digitalWrite(LED_PIN, HIGH);                        // sending midi, so light up led
           usbMIDI.sendNoteOn(noteNumber, VELOCITY, MIDI_CH);  // send Note On, USB MIDI
-          midiNoteOn(noteNumber)                              // send Note On, DIN
+          midiNoteOn(noteNumber);                             // send Note On, DIN
           if (!BRIGHT_LED) digitalWrite(LED_PIN, LOW);        // led off for low brightness
         }
       }
@@ -167,13 +169,17 @@ void enableRow(int row) {
 }
 
 // Send Note On commands over serial port. Channel and Velocity set above.
-void midiNoteOn(byte note){
+void midiNoteOn(unsigned int note){
   noteOnCmd[1] = note;
-  Serial1.write(noteOnCmd,3);
+  Serial1.write(noteOnCmd[0]);
+  Serial1.write(noteOnCmd[1]);
+  Serial1.write(noteOnCmd[2]);
 }
 
 // Send Note Off commands over serial port. Channel and Velocity set above.
-void midiNoteOff(byte note){
+void midiNoteOff(unsigned int note){
   noteOffCmd[1] = note;
-  Serial.write(noteOffCmd,3);
+  Serial1.write(noteOffCmd[0]);
+  Serial1.write(noteOffCmd[1]);
+  Serial1.write(noteOffCmd[2]);
 }
