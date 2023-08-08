@@ -1,28 +1,39 @@
 /////////////////////////////////////////////////////////////////////////
 //                                                                     //
 //   Teensy LC chord strummer by Johan Berglund, April 2017            //
-//       Modified March 2023 by Rob McCarty                            //
+//       Modified August 2023 by Rob McCarty                            //
 //                                                                     //
 /////////////////////////////////////////////////////////////////////////
 
-
+#include <CircularBuffer.h>
 
 #define MIDI_CH 1            // MIDI channel
 #define VELOCITY 64          // MIDI note velocity (64 for medium velocity, 127 for maximum)
 #define NOTE_ON_CMD 0x90     // MIDI note on command for channel 1
 #define NOTE_OFF_CMD 0x80    // MIDI note off command for channel 1
-#define START_NOTE 60        // MIDI start note (60 is middle C)
+#define START_NOTE 48        // MIDI start note (48 is C3)
 #define PADS 8               // number of touch electrodes
-#define LED_PIN 13           // LED to indicate midi activity
-#define BRIGHT_LED 1         // LED brightness, 0 is low, 1 is high
+#define ANALOG_PIN A12       // pin for reading analog values, pin 26/A12
 #define TOUCH_THR 1500       // threshold level for capacitive touch (lower is more sensitive)
 #define serialPortRX 25      // not used, but defining so there aren't conflicts
 #define serialPortTX 5      // MIDI DIN TX - teensy LC Serial1 tx pin options are 1, 4, 5, 24 for serial1, 
+#define ADC_MIN 0
+#define ADC_MAX 1023
+#define BUFFER_SIZE 32      // size of sustain buffer
+#define DEBOUNCE 500        // time (ms) allowed between restrums 
 
 #define CHECK_INTERVAL 4     // interval in ms for sensor check
 
 unsigned long currentMillis = 0L;
 unsigned long statusPreviousMillis = 0L;
+
+// these buffers used to keep track of notes for sustain implementation
+CircularBuffer<int, BUFFER_SIZE> noteBuffer;
+CircularBuffer<int, BUFFER_SIZE> susBuffer;
+unsigned long sustain = 1500; // time between Note On and Note Off. TODO: add analog control of this value
+unsigned long minSustain = 24;
+unsigned long maxSustain = 8000;
+
 
 unsigned int noteOnCmd[3] = {NOTE_ON_CMD,0x00,VELOCITY};       // MIDI note on and note off message structures
 unsigned int noteOffCmd[3] = {NOTE_OFF_CMD,0x00,VELOCITY};
@@ -66,8 +77,8 @@ int chordNote[8][8] = {        // chord notes for each pad/string
   { 0, 4, 7,10,12,16,19,22 },  // 7th 
   { 0, 4, 7,11,12,16,19,23 },  // maj7
   { 0, 3, 7,10,12,15,19,22 },  // m7  
-  // { 0, 5, 7,12,17,19,24,29 },  // sus, uncomment this line and comment out aug line to enable 
-  { 0, 4, 8,12,16,20,24,28 }   // aug  
+  { 0, 5, 7,12,17,19,24,29 },  // sus, uncomment this line and comment out aug line to enable 
+  // { 0, 4, 8,12,16,20,24,28 }   // aug  
 };
 
 // SETUP
@@ -82,35 +93,31 @@ void setup() {
      pinMode(rowPin[i],OUTPUT);
      digitalWrite(rowPin[i],LOW);
   }
-  // disabling LED output because pin 13 used for column input
-  // pinMode(LED_PIN, OUTPUT);
 }
 
 // MAIN LOOP
 void loop() {
   currentMillis = millis();
   if ((unsigned long)(currentMillis - statusPreviousMillis) >= CHECK_INTERVAL) {
-    // if (BRIGHT_LED) digitalWrite(LED_PIN, LOW);                          // led off for high brightness, disabled due to LED_PIN conflict
     readKeyboard();                                                      // read keyboard input and replay active notes (if any) with new chording
     for (int scanSensors = 0; scanSensors < PADS; scanSensors++) {       // scan sensors for changes and send note on/off accordingly
       sensedNote = (touchRead(sensorPin[scanSensors]) > TOUCH_THR);      // read touch pad/pin/electrode/string/whatever
       if (sensedNote != activeNote[scanSensors]) {
         noteNumber = START_NOTE + chord + chordNote[chordType][scanSensors];
         if ((noteNumber < 128) && (noteNumber > -1) && (chordNote[chordType][scanSensors] > -1)) {    // we don't want to send midi out of range or play silent notes
-          // digitalWrite(LED_PIN, HIGH);                                // sending midi, so light up led, disabled due to LED_PIN conflict
           if (sensedNote){
-              usbMIDI.sendNoteOn(noteNumber, VELOCITY, MIDI_CH);      // send Note On, USB MIDI
-              midiNoteOn(noteNumber);                                 // send Note On, DIN
+              checkBuffAndNoteOn(noteNumber, currentMillis);  // send Note On with time, buffer will be checked so that notes already playing will restrum
           } else {
-              usbMIDI.sendNoteOff(noteNumber, VELOCITY, MIDI_CH);     // send note Off, USB MIDI
-              midiNoteOff(noteNumber);                                // send note Off, DIN
+              // usbMIDI.sendNoteOff(noteNumber, VELOCITY, MIDI_CH);     // send note Off, USB MIDI
+              // midiNoteOff(noteNumber);                                // send note Off, DIN
           }
-          // if (!BRIGHT_LED) digitalWrite(LED_PIN, LOW);                // led off for low brightness, disabled due to LED_PIN conflict
         }  
         activeNote[scanSensors] = sensedNote;         
       }  
     }
-    statusPreviousMillis = currentMillis;                             // reset interval timing
+	checkSusBuffer(currentMillis);                                   // check to see if any notes need to be turned off
+	// updateSustain();                                              // leave commented if hardware not implemented
+    statusPreviousMillis = currentMillis;                          // reset interval timing
   }
 }
 // END MAIN LOOP
@@ -129,14 +136,13 @@ void readKeyboard() {
     }
   }  
   if ((readChord != chord) || (readChordType != chordType)) { // have the values changed since last scan?
+  // TODO: sustain implementation broke the part of this that turns off active notes, consider looping through buffer and turning off notes when chords change.
     for (int i = 0; i < PADS; i++) {
        noteNumber = START_NOTE + chord + chordNote[chordType][i];
        if ((noteNumber < 128) && (noteNumber > -1) && (chordNote[chordType][i] > -1)) {      // we don't want to send midi out of range or play silent notes
          if (activeNote[i]) {
-          // digitalWrite(LED_PIN, HIGH);                        // sending midi, so light up led
-          usbMIDI.sendNoteOff(noteNumber, VELOCITY, MIDI_CH); // send Note Off, USB MIDI
-          midiNoteOff(noteNumber);                             // send Note Off, DIN
-          // if (!BRIGHT_LED) digitalWrite(LED_PIN, LOW);        // led off for low brightness
+          // usbMIDI.sendNoteOff(noteNumber, VELOCITY, MIDI_CH); // send Note Off, USB MIDI
+          // midiNoteOff(noteNumber);                             // send Note Off, DIN
          }
        }
     }
@@ -144,10 +150,7 @@ void readKeyboard() {
       noteNumber = START_NOTE + readChord + chordNote[readChordType][i];
       if ((noteNumber < 128) && (noteNumber > -1) && (chordNote[readChordType][i] > -1)) {    // we don't want to send midi out of range or play silent notes
         if (activeNote[i]) {
-          // digitalWrite(LED_PIN, HIGH);                        // sending midi, so light up led
-          usbMIDI.sendNoteOn(noteNumber, VELOCITY, MIDI_CH);  // send Note On, USB MIDI
-          midiNoteOn(noteNumber);                             // send Note On, DIN
-          // if (!BRIGHT_LED) digitalWrite(LED_PIN, LOW);        // led off for low brightness
+          checkBuffAndNoteOn(noteNumber,currentMillis);  // send Note On with time
         }
       }
     }
@@ -168,6 +171,52 @@ void enableRow(int row) {
     }
   }
   delayMicroseconds(30); // wait before reading ports (let ports settle after changing)
+}
+
+void updateSustain(){
+	unsigned long inputVal = analogRead(ANALOG_PIN);
+	sustain = map(inputVal,0,ADC_MAX,minSustain,maxSustain);
+}
+
+void funcNoteOn(int note,unsigned long time){
+	usbMIDI.sendNoteOn(note, VELOCITY, MIDI_CH);  // send Note On, USB MIDI
+  midiNoteOn(note);                             // send Note On, DIN
+	noteBuffer.push(note);				 		  // add note to end of buffer
+	susBuffer.push(time);						  // add time to end of buffer (aligned to note)
+}
+
+void funcNoteOff(int note){
+	usbMIDI.sendNoteOff(note, VELOCITY, MIDI_CH);  // send Note On, USB MIDI
+  midiNoteOff(note);                             // send Note On, DIN
+}
+
+bool findNote(int note, unsigned long time){           // checks to see if note is in buffer and enough time has passed to restrum
+  bool restrum;
+  for(int i = 0; i <noteBuffer.size(); i++){
+    if(note==noteBuffer[i] && (time - susBuffer[i] > DEBOUNCE)){
+      restrum=true;
+    }
+  }
+  return restrum;
+}
+
+void checkBuffAndNoteOn(int note, long time){
+  if(findNote(note, time)){                       // note is already in the buffer; the device already has note playing
+    funcNoteOff(note);                      // turn the note off so it can be turned back on/restrummed
+  }
+  funcNoteOn(note, time);                         // send Note On commands
+}
+
+void checkSusBuffer(unsigned long time){
+	// check oldest (lowest indexed) note in buffer to see if it needs to be turned off
+	// newer notes are always added to end of buffer while older notes are removed from the front, so only the first entry needs to be checked on each pass.
+	// 32 items in buffer, 4ms check interval in main loop: up to 128 ms to get through entire buffer.
+	if (time - susBuffer[0] > sustain && !noteBuffer.isEmpty()){
+		usbMIDI.sendNoteOff(noteBuffer[0], VELOCITY, MIDI_CH);     // send note Off, USB MIDI
+		midiNoteOff(noteBuffer[0]);                                // send note Off, DIN
+		noteBuffer.shift();										   // remove note from buffer
+		susBuffer.shift();										   // remove associated time from buffer to keep things aligned
+	}
 }
 
 // Send Note On commands over serial port. Channel and Velocity set above.
