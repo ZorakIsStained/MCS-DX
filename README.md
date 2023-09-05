@@ -1,6 +1,6 @@
 # tlc-strummer
 
-This is an update based on the firmware for T. Chordstrum - USB MIDI chord strummer for Teensy LC. The update adds midi DIN output.
+This is a fork of the T. Chordstrum - USB MIDI chord strummer for Teensy LC. The update adds midi DIN output.
 
 Original project: https://hackaday.io/project/25111-t-chordstrum
 
