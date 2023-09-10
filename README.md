@@ -1,10 +1,11 @@
-# tlc-strummer
+# MCS-DX
 
-This is a fork of the T. Chordstrum - USB MIDI chord strummer for Teensy LC. The update adds midi DIN output.
+Midi Chord Strummer Deluxe
+This began as a fork of the T. Chordstrum to add midi DIN output, but has since grown into a more involved update.
 
 Original project: https://hackaday.io/project/25111-t-chordstrum
 
-Chord strummer with a 12x3 keyboard based on the circle of fifths, like the Omnichord. For strumming the chords, a set of eight touch sensitive pads is used. 
+Chord strummer with a 12x3 keyboard based on the circle of fifths, like the Omnichord. For strumming the chords, a set of eight touch sensitive pads is used. The pads can be exposed copper, it's recommended to keep the spacing between pads relatively close because interpolation is used to allow strumming more than 8 notes.
 
 Chords are selected as follows:
 
@@ -23,7 +24,7 @@ top+mid     - diminished,
 all three   - augmented or sustained depending on code
 
 
-Using the Chord Strummer as a USB MIDI controller
+Using the MCS-DX as a USB MIDI controller
 
 Connect the T. Chordstrum via micro USB cable to a computer or other host device with a midi synth software installed and running.
 Select "Teensy MIDI" as MIDI input in synth software if necessary.
